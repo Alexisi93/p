@@ -8,62 +8,101 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <style>
-        body { background-color: #1a1a24; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .glass-panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .hover-hud { opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .hover-hud:hover { opacity: 1; }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 to-slate-800">
 
-    <div class="glass-panel rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
-        <h1 class="text-3xl font-bold mb-2 text-green-400">Terraria Web</h1>
+    <!-- MAIN LAUNCHER UI -->
+    <div id="launcherUI" class="glass-panel rounded-2xl shadow-2xl p-8 max-w-md w-full text-center transition-all duration-300">
+        <h1 class="text-4xl font-extrabold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">Terraria Web</h1>
         <p class="text-sm text-gray-400 mb-8" id="statusMsg">Checking server environment...</p>
 
-        <!-- STEP 1: Service Worker Setup (Only shown if sw.js is missing) -->
+        <!-- STEP 1: Service Worker Setup/Update -->
         <div id="setupBox" class="hidden space-y-4">
-            <div class="bg-yellow-900/30 border border-yellow-700 p-4 rounded-lg text-left text-sm">
-                <p class="mb-2 font-bold text-yellow-500">Action Required!</p>
-                <p class="mb-2">We need a Service Worker file to configure the secure server headers automatically.</p>
-                <ol class="list-decimal ml-4 space-y-1 text-gray-300">
-                    <li>Click the button below to generate <b>sw.js</b></li>
-                    <li>Upload <b>sw.js</b> to your server (next to this index.html)</li>
+            <div class="bg-yellow-900/40 border border-yellow-600 p-4 rounded-lg text-left text-sm shadow-inner">
+                <p class="mb-2 font-bold text-yellow-400 text-base">⚠️ Action Required!</p>
+                <p class="mb-2 text-gray-200">We need to install or update the secure <b>sw.js</b> file on your GitHub to run the game properly.</p>
+                <ol class="list-decimal ml-4 space-y-2 text-gray-300 font-medium">
+                    <li>Click below to download the latest <b>sw.js</b></li>
+                    <li>Upload/Replace it in your GitHub repository</li>
                     <li>Refresh this page!</li>
                 </ol>
             </div>
-            <button onclick="downloadSW()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition-colors">
+            <button onclick="downloadSW()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-blue-900/50 hover:scale-[1.02]">
                 Download sw.js
             </button>
         </div>
 
         <!-- STEP 2: Upload ZIP -->
         <div id="uploadBox" class="hidden space-y-4">
-            <p class="text-gray-300 mb-4">Select your downloaded <b>terraria-wasm-build.zip</b>. It will be installed locally to your browser to save server bandwidth!</p>
+            <p class="text-gray-300 mb-4">Select your <b>terraria-wasm-build.zip</b>. It will install locally to your browser.</p>
             
-            <label class="block w-full bg-green-700 hover:bg-green-600 cursor-pointer text-white font-bold py-4 px-4 rounded-xl transition-colors border-2 border-dashed border-green-400">
-                <span>Select ZIP File</span>
+            <label class="block w-full bg-slate-700 hover:bg-slate-600 cursor-pointer text-white font-bold py-4 px-4 rounded-xl transition-all border-2 border-dashed border-gray-500 hover:border-green-400 hover:scale-[1.02]">
+                <span class="flex items-center justify-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    Select ZIP File
+                </span>
                 <input type="file" id="zipInput" accept=".zip" class="hidden">
             </label>
 
             <!-- Progress Bar -->
-            <div id="progressContainer" class="hidden mt-4">
-                <div class="w-full bg-gray-700 rounded-full h-2.5 mb-2">
-                    <div id="progressBar" class="bg-green-500 h-2.5 rounded-full" style="width: 0%"></div>
+            <div id="progressContainer" class="hidden mt-4 bg-slate-800/50 p-3 rounded-lg">
+                <div class="w-full bg-gray-700 rounded-full h-3 mb-2 overflow-hidden">
+                    <div id="progressBar" class="bg-gradient-to-r from-green-500 to-emerald-400 h-3 rounded-full transition-all duration-200" style="width: 0%"></div>
                 </div>
-                <p id="progressText" class="text-xs text-gray-400">Extracting...</p>
+                <p id="progressText" class="text-xs text-gray-400 font-mono">Extracting...</p>
             </div>
         </div>
 
-        <!-- STEP 3: Play -->
-        <div id="playBox" class="hidden mt-6 pt-6 border-t border-gray-700">
-            <p class="text-green-400 font-bold mb-4">Game is installed and ready!</p>
-            <button onclick="launchGame()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-green-900/50">
-                Launch Game
+        <!-- STEP 3: Play & Settings -->
+        <div id="playBox" class="hidden mt-6 space-y-3">
+            <div class="p-4 bg-green-900/20 border border-green-800 rounded-xl mb-4">
+                <p class="text-green-400 font-bold flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Game is ready to play!
+                </p>
+            </div>
+            
+            <button onclick="launchGame()" class="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg shadow-green-900/50 hover:scale-[1.02] text-lg">
+                ▶ Launch Game
+            </button>
+            
+            <button onclick="clearData()" class="w-full bg-slate-800 hover:bg-red-900/80 text-gray-300 hover:text-white font-semibold py-2 px-4 rounded-xl transition-colors border border-slate-700 hover:border-red-700 text-sm">
+                Delete Installed Files
             </button>
         </div>
     </div>
 
+    <!-- GAME CONTAINER (Hidden by default) -->
+    <div id="gameContainer" class="hidden fixed inset-0 w-full h-full bg-black z-50 flex flex-col">
+        
+        <!-- Hover HUD (Top Bar) -->
+        <div class="hover-hud absolute top-0 left-0 w-full p-4 flex justify-between items-center bg-gradient-to-b from-black/90 to-transparent z-50 text-white">
+            <button onclick="exitGame()" class="bg-red-600/90 hover:bg-red-500 px-5 py-2 rounded-lg font-bold shadow-lg transition-colors border border-red-400/30 flex items-center gap-2 backdrop-blur-sm">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Exit Game
+            </button>
+            
+            <div class="text-gray-400 text-sm font-mono tracking-widest pointer-events-none">TERRARIA WEB</div>
+
+            <button onclick="toggleFullscreen()" class="bg-slate-700/90 hover:bg-slate-600 px-5 py-2 rounded-lg font-bold shadow-lg transition-colors border border-slate-500/30 flex items-center gap-2 backdrop-blur-sm">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                Fullscreen
+            </button>
+        </div>
+
+        <!-- The actual game iframe -->
+        <iframe id="gameFrame" class="w-full h-full border-none flex-grow bg-black"></iframe>
+    </div>
+
     <script>
-        // --- Service Worker Code Generator ---
-        const swCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js');
+        // --- Service Worker Code Generator (Version 2 - Polish) ---
+        const swCode = `// v2-polish
+importScripts('https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js');
 self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
@@ -74,7 +113,30 @@ self.addEventListener('fetch', e => {
         const url = new URL(e.request.url);
         const path = url.pathname.split('/').pop();
 
-        // 1. Check Local Database for Game Files FIRST
+        // 1. Virtual Game Route (Intercepts the iframe request to serve the HTML safely)
+        if (path === 'virtual-game.html') {
+            try {
+                const keys = await localforage.keys();
+                // Find terraria.html, or any fallback .html file saved during extraction
+                const htmlKey = keys.find(k => k === 'terraria.html') || keys.find(k => k.endsWith('.html'));
+                
+                if (htmlKey) {
+                    const fileData = await localforage.getItem(htmlKey);
+                    return new Response(fileData, {
+                        headers: {
+                            'Content-Type': 'text/html',
+                            'Cross-Origin-Embedder-Policy': 'require-corp',
+                            'Cross-Origin-Opener-Policy': 'same-origin'
+                        }
+                    });
+                }
+                return new Response("<h2 style='color:white; font-family:sans-serif; text-align:center; margin-top:50px;'>Game HTML not found. Please exit and re-extract the ZIP.</h2>", { status: 404, headers: {'Content-Type': 'text/html'} });
+            } catch(err) {
+                return new Response("Error reading storage database.", { status: 500 });
+            }
+        }
+
+        // 2. Local Database File Interceptor
         if (path && path !== 'sw.js' && path !== 'index.html' && path !== '') {
             try {
                 const fileData = await localforage.getItem(path);
@@ -85,17 +147,18 @@ self.addEventListener('fetch', e => {
                         headers: {
                             'Content-Type': mimeTypes[ext] || 'application/octet-stream',
                             'Cross-Origin-Embedder-Policy': 'require-corp',
-                            'Cross-Origin-Opener-Policy': 'same-origin'
+                            'Cross-Origin-Opener-Policy': 'same-origin',
+                            'Cache-Control': 'no-cache, no-store, must-revalidate'
                         }
                     });
                 }
             } catch(err) { console.error('IDB Read Error:', err); }
         }
 
-        // 2. Fetch from Network and Apply Headers universally
+        // 3. Fallback to Network (for index.html and external CDN requests)
         try {
             const res = await fetch(e.request);
-            if (res.status === 0) return res; // Handle opaque responses
+            if (res.status === 0) return res; 
             
             const headers = new Headers(res.headers);
             headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
@@ -125,49 +188,61 @@ self.addEventListener('fetch', e => {
         document.addEventListener('DOMContentLoaded', async () => {
             const statusEl = document.getElementById('statusMsg');
             
-            // 1. Check if Service Worker is supported
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('sw.js').then(async (reg) => {
                     
-                    // Safety check to prevent infinite reloads if host strips headers
+                    // Force Update Check: Check if sw.js has the new v2-polish tag
+                    let needsUpdate = false;
+                    try {
+                        const swFetch = await fetch('sw.js?t=' + Date.now());
+                        if (swFetch.ok) {
+                            const swText = await swFetch.text();
+                            if (!swText.includes('v2-polish')) needsUpdate = true;
+                        } else {
+                            needsUpdate = true; // file doesn't exist yet
+                        }
+                    } catch(e) { needsUpdate = true; }
+
+                    if (needsUpdate) {
+                        document.getElementById('setupBox').classList.remove('hidden');
+                        statusEl.innerHTML = "<span class='text-yellow-400 font-bold'>Update required to continue.</span>";
+                        return; // Stop here until updated
+                    }
+
+                    // Headers Check
                     if (!window.crossOriginIsolated) {
                         let reloads = parseInt(sessionStorage.getItem('sw_reload_count') || '0');
                         if (reloads < 3) {
                             sessionStorage.setItem('sw_reload_count', reloads + 1);
-                            statusEl.innerText = "Applying security headers... reloading in 1 second...";
-                            setTimeout(() => window.location.reload(), 1000);
+                            statusEl.innerText = "Applying secure headers... reloading...";
+                            setTimeout(() => window.location.reload(), 800);
                         } else {
-                            statusEl.innerHTML = "<span class='text-red-400 font-bold'>Error:</span> Could not apply headers. Your hosting provider is likely stripping them out forcefully. Please try GitHub Pages.";
+                            statusEl.innerHTML = "<span class='text-red-400 font-bold'>Header Error:</span> Browser failed to apply security headers.";
                         }
                         return;
                     }
 
-                    // We are isolated and ready! Check if game is already installed
+                    // Ready!
                     sessionStorage.removeItem('sw_reload_count');
-                    statusEl.innerText = "Environment ready!";
-                    document.getElementById('uploadBox').classList.remove('hidden');
+                    statusEl.innerText = "Environment fully secured & ready!";
                     
-                    const isInstalled = await localforage.getItem('terraria.wasm');
+                    const isInstalled = await localforage.getItem('is_installed');
                     if (isInstalled) {
                         document.getElementById('playBox').classList.remove('hidden');
-                        statusEl.innerText = "Game is already installed on this device.";
+                        statusEl.innerText = "Files detected in browser storage.";
+                    } else {
+                        document.getElementById('uploadBox').classList.remove('hidden');
                     }
 
                 }).catch(err => {
-                    // Registration failed because sw.js is missing from the server
                     document.getElementById('setupBox').classList.remove('hidden');
                     statusEl.innerText = "Missing Server Infrastructure";
                 });
             } else {
-                // Determine exactly why it's missing
-                if (!window.isSecureContext) {
-                    statusEl.innerHTML = "<span class='text-red-400 font-bold'>Security Error:</span><br>This tool requires a secure connection (HTTPS). Awardspace free tier does not support this. Please host this file on <b>GitHub Pages</b> for free HTTPS.";
-                } else {
-                    statusEl.innerText = "Your browser does not support Service Workers. Please use a modern browser like Chrome, Firefox, or Edge.";
-                }
+                statusEl.innerText = "Your browser does not support Service Workers. Please use a modern browser.";
             }
 
-            // 2. Handle ZIP Upload & Extraction
+            // ZIP Extraction Logic
             document.getElementById('zipInput').addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -177,6 +252,7 @@ self.addEventListener('fetch', e => {
                 const pText = document.getElementById('progressText');
                 
                 pContainer.classList.remove('hidden');
+                document.getElementById('zipInput').parentElement.classList.add('hidden'); // Hide upload button during extract
                 
                 try {
                     const zip = await JSZip.loadAsync(file);
@@ -185,27 +261,74 @@ self.addEventListener('fetch', e => {
                     let i = 0;
                     for (const filename of files) {
                         i++;
-                        const cleanName = filename.split('/').pop(); // Flatten folders
+                        const cleanName = filename.split('/').pop(); 
                         
                         pText.innerText = `Extracting: ${cleanName} (${i}/${files.length})`;
                         pBar.style.width = `${(i / files.length) * 100}%`;
                         
-                        // Extract and save to browser database
                         const data = await zip.files[filename].async('arraybuffer');
                         await localforage.setItem(cleanName, data);
                     }
                     
-                    pText.innerText = 'Extraction complete!';
-                    document.getElementById('playBox').classList.remove('hidden');
+                    await localforage.setItem('is_installed', true);
+                    pText.innerText = 'Installation complete!';
+                    
+                    setTimeout(() => {
+                        document.getElementById('uploadBox').classList.add('hidden');
+                        document.getElementById('playBox').classList.remove('hidden');
+                    }, 1000);
                     
                 } catch (err) {
                     alert('Error extracting ZIP: ' + err.message);
+                    window.location.reload();
                 }
             });
         });
 
+        // --- Game Container Controls ---
+        
         function launchGame() {
-            window.location.href = './terraria.html';
+            // Hide main menu, show game container
+            document.getElementById('launcherUI').classList.add('hidden');
+            document.getElementById('gameContainer').classList.remove('hidden');
+            
+            // Set the iframe to the virtual URL the Service Worker is looking for!
+            document.getElementById('gameFrame').src = 'virtual-game.html';
+        }
+
+        function exitGame() {
+            document.getElementById('gameFrame').src = ''; // Stops the game processing
+            document.getElementById('gameContainer').classList.add('hidden');
+            document.getElementById('launcherUI').classList.remove('hidden');
+            
+            // Exit fullscreen if active
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            }
+        }
+
+        function toggleFullscreen() {
+            const container = document.getElementById('gameContainer');
+            if (!document.fullscreenElement) {
+                if (container.requestFullscreen) {
+                    container.requestFullscreen();
+                } else if (container.webkitRequestFullscreen) {
+                    container.webkitRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+            }
+        }
+
+        async function clearData() {
+            if(confirm("Are you sure you want to delete the installed game files? This clears up browser space and allows you to install a fresh ZIP.")) {
+                await localforage.clear();
+                window.location.reload();
+            }
         }
     </script>
 </body>
