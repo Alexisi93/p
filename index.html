@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terraria Web Launcher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <style>
+        body { background-color: #1a1a24; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .glass-panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="glass-panel rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+        <h1 class="text-3xl font-bold mb-2 text-green-400">Terraria Web</h1>
+        <p class="text-sm text-gray-400 mb-8" id="statusMsg">Checking server environment...</p>
+
+        <!-- STEP 1: Service Worker Setup (Only shown if sw.js is missing) -->
+        <div id="setupBox" class="hidden space-y-4">
+            <div class="bg-yellow-900/30 border border-yellow-700 p-4 rounded-lg text-left text-sm">
+                <p class="mb-2 font-bold text-yellow-500">Action Required!</p>
+                <p class="mb-2">We need a Service Worker file to configure the secure server headers automatically.</p>
+                <ol class="list-decimal ml-4 space-y-1 text-gray-300">
+                    <li>Click the button below to generate <b>sw.js</b></li>
+                    <li>Upload <b>sw.js</b> to your server (next to this index.html)</li>
+                    <li>Refresh this page!</li>
+                </ol>
+            </div>
+            <button onclick="downloadSW()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition-colors">
+                Download sw.js
+            </button>
+        </div>
+
+        <!-- STEP 2: Upload ZIP -->
+        <div id="uploadBox" class="hidden space-y-4">
+            <p class="text-gray-300 mb-4">Select your downloaded <b>terraria-wasm-build.zip</b>. It will be installed locally to your browser to save server bandwidth!</p>
+            
+            <label class="block w-full bg-green-700 hover:bg-green-600 cursor-pointer text-white font-bold py-4 px-4 rounded-xl transition-colors border-2 border-dashed border-green-400">
+                <span>Select ZIP File</span>
+                <input type="file" id="zipInput" accept=".zip" class="hidden">
+            </label>
+
+            <!-- Progress Bar -->
+            <div id="progressContainer" class="hidden mt-4">
+                <div class="w-full bg-gray-700 rounded-full h-2.5 mb-2">
+                    <div id="progressBar" class="bg-green-500 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="progressText" class="text-xs text-gray-400">Extracting...</p>
+            </div>
+        </div>
+
+        <!-- STEP 3: Play -->
+        <div id="playBox" class="hidden mt-6 pt-6 border-t border-gray-700">
+            <p class="text-green-400 font-bold mb-4">Game is installed and ready!</p>
+            <button onclick="launchGame()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-green-900/50">
+                Launch Game
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Service Worker Code Generator ---
+        const swCode = `importScripts('https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js');
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+
+self.addEventListener('fetch', e => {
+    if (e.request.method !== 'GET') return;
+
+    e.respondWith((async () => {
+        const url = new URL(e.request.url);
+        const path = url.pathname.split('/').pop();
+
+        // 1. Check Local Database for Game Files FIRST
+        if (path && path !== 'sw.js' && path !== 'index.html' && path !== '') {
+            try {
+                const fileData = await localforage.getItem(path);
+                if (fileData) {
+                    const ext = path.split('.').pop().toLowerCase();
+                    const mimeTypes = { 'html':'text/html', 'js':'application/javascript', 'wasm':'application/wasm', 'data':'application/octet-stream', 'png':'image/png', 'css':'text/css' };
+                    return new Response(fileData, {
+                        headers: {
+                            'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+                            'Cross-Origin-Embedder-Policy': 'require-corp',
+                            'Cross-Origin-Opener-Policy': 'same-origin'
+                        }
+                    });
+                }
+            } catch(err) { console.error('IDB Read Error:', err); }
+        }
+
+        // 2. Fetch from Network and Apply Headers universally
+        try {
+            const res = await fetch(e.request);
+            if (res.status === 0) return res; // Handle opaque responses
+            
+            const headers = new Headers(res.headers);
+            headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+            headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+            
+            return new Response(res.body, { 
+                status: res.status, 
+                statusText: res.statusText,
+                headers: headers 
+            });
+        } catch(err) { 
+            return fetch(e.request); 
+        }
+    })());
+});`;
+
+        function downloadSW() {
+            const a = document.createElement('a');
+            a.href = 'data:application/javascript;charset=utf-8,' + encodeURIComponent(swCode);
+            a.download = 'sw.js';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // --- Application Logic ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            const statusEl = document.getElementById('statusMsg');
+            
+            // 1. Check if Service Worker is supported
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').then(async (reg) => {
+                    
+                    // Safety check to prevent infinite reloads if host strips headers
+                    if (!window.crossOriginIsolated) {
+                        let reloads = parseInt(sessionStorage.getItem('sw_reload_count') || '0');
+                        if (reloads < 3) {
+                            sessionStorage.setItem('sw_reload_count', reloads + 1);
+                            statusEl.innerText = "Applying security headers... reloading in 1 second...";
+                            setTimeout(() => window.location.reload(), 1000);
+                        } else {
+                            statusEl.innerHTML = "<span class='text-red-400 font-bold'>Error:</span> Could not apply headers. Your hosting provider is likely stripping them out forcefully. Please try GitHub Pages.";
+                        }
+                        return;
+                    }
+
+                    // We are isolated and ready! Check if game is already installed
+                    sessionStorage.removeItem('sw_reload_count');
+                    statusEl.innerText = "Environment ready!";
+                    document.getElementById('uploadBox').classList.remove('hidden');
+                    
+                    const isInstalled = await localforage.getItem('terraria.wasm');
+                    if (isInstalled) {
+                        document.getElementById('playBox').classList.remove('hidden');
+                        statusEl.innerText = "Game is already installed on this device.";
+                    }
+
+                }).catch(err => {
+                    // Registration failed because sw.js is missing from the server
+                    document.getElementById('setupBox').classList.remove('hidden');
+                    statusEl.innerText = "Missing Server Infrastructure";
+                });
+            } else {
+                // Determine exactly why it's missing
+                if (!window.isSecureContext) {
+                    statusEl.innerHTML = "<span class='text-red-400 font-bold'>Security Error:</span><br>This tool requires a secure connection (HTTPS). Awardspace free tier does not support this. Please host this file on <b>GitHub Pages</b> for free HTTPS.";
+                } else {
+                    statusEl.innerText = "Your browser does not support Service Workers. Please use a modern browser like Chrome, Firefox, or Edge.";
+                }
+            }
+
+            // 2. Handle ZIP Upload & Extraction
+            document.getElementById('zipInput').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const pContainer = document.getElementById('progressContainer');
+                const pBar = document.getElementById('progressBar');
+                const pText = document.getElementById('progressText');
+                
+                pContainer.classList.remove('hidden');
+                
+                try {
+                    const zip = await JSZip.loadAsync(file);
+                    const files = Object.keys(zip.files).filter(f => !zip.files[f].dir);
+                    
+                    let i = 0;
+                    for (const filename of files) {
+                        i++;
+                        const cleanName = filename.split('/').pop(); // Flatten folders
+                        
+                        pText.innerText = `Extracting: ${cleanName} (${i}/${files.length})`;
+                        pBar.style.width = `${(i / files.length) * 100}%`;
+                        
+                        // Extract and save to browser database
+                        const data = await zip.files[filename].async('arraybuffer');
+                        await localforage.setItem(cleanName, data);
+                    }
+                    
+                    pText.innerText = 'Extraction complete!';
+                    document.getElementById('playBox').classList.remove('hidden');
+                    
+                } catch (err) {
+                    alert('Error extracting ZIP: ' + err.message);
+                }
+            });
+        });
+
+        function launchGame() {
+            window.location.href = './terraria.html';
+        }
+    </script>
+</body>
+</html>
