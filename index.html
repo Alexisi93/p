@@ -21,6 +21,15 @@
         <h1 class="text-4xl font-extrabold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">Terraria Web</h1>
         <p class="text-sm text-gray-400 mb-8" id="statusMsg">Checking server environment...</p>
 
+        <!-- Error Box -->
+        <div id="errorBox" class="hidden bg-red-900/40 border border-red-600 p-4 rounded-lg text-left text-sm text-red-200 mb-6 shadow-inner">
+            <p class="font-bold flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Error Occurred
+            </p>
+            <p id="errorText" class="mt-1">Something went wrong.</p>
+        </div>
+
         <!-- STEP 1: Service Worker Setup/Update -->
         <div id="setupBox" class="hidden space-y-4">
             <div class="bg-yellow-900/40 border border-yellow-600 p-4 rounded-lg text-left text-sm shadow-inner">
@@ -87,7 +96,9 @@
                 Exit Game
             </button>
             
-            <div class="text-gray-400 text-sm font-mono tracking-widest pointer-events-none">TERRARIA WEB</div>
+            <div class="text-gray-400 text-sm font-mono tracking-widest pointer-events-none font-bold text-center">
+                TERRARIA WEB <span class="text-green-400/70 ml-2">v1.4.0</span>
+            </div>
 
             <button onclick="toggleFullscreen()" class="bg-slate-700/90 hover:bg-slate-600 px-5 py-2 rounded-lg font-bold shadow-lg transition-colors border border-slate-500/30 flex items-center gap-2 backdrop-blur-sm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
@@ -95,13 +106,19 @@
             </button>
         </div>
 
-        <!-- The actual game iframe -->
-        <iframe id="gameFrame" class="w-full h-full border-none flex-grow bg-black"></iframe>
+        <!-- The actual game iframe container (Injected via JS to prevent WASM Memory Leaks) -->
+        <div id="iframeContainer" class="w-full h-full border-none flex-grow bg-black relative">
+        </div>
+    </div>
+
+    <!-- UI Version Badge -->
+    <div class="fixed bottom-3 right-4 text-xs font-mono text-gray-500 bg-black/30 px-2 py-1 rounded pointer-events-none z-40 border border-white/5 shadow-sm">
+        v1.4.0
     </div>
 
     <script>
-        // --- Service Worker Code Generator (Version 2 - Polish) ---
-        const swCode = `// v2-polish
+        // --- Service Worker Code Generator (Version 4 - Enhanced) ---
+        const swCode = `// v4-enhanced
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js');
 self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
@@ -109,15 +126,15 @@ self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', e => {
     if (e.request.method !== 'GET') return;
 
+    const url = new URL(e.request.url);
+    if (!url.protocol.startsWith('http')) return;
+
     e.respondWith((async () => {
-        const url = new URL(e.request.url);
         const path = url.pathname.split('/').pop();
 
-        // 1. Virtual Game Route (Intercepts the iframe request to serve the HTML safely)
         if (path === 'virtual-game.html') {
             try {
                 const keys = await localforage.keys();
-                // Find terraria.html, or any fallback .html file saved during extraction
                 const htmlKey = keys.find(k => k === 'terraria.html') || keys.find(k => k.endsWith('.html'));
                 
                 if (htmlKey) {
@@ -126,7 +143,8 @@ self.addEventListener('fetch', e => {
                         headers: {
                             'Content-Type': 'text/html',
                             'Cross-Origin-Embedder-Policy': 'require-corp',
-                            'Cross-Origin-Opener-Policy': 'same-origin'
+                            'Cross-Origin-Opener-Policy': 'same-origin',
+                            'Cache-Control': 'no-cache, no-store, must-revalidate'
                         }
                     });
                 }
@@ -136,7 +154,6 @@ self.addEventListener('fetch', e => {
             }
         }
 
-        // 2. Local Database File Interceptor
         if (path && path !== 'sw.js' && path !== 'index.html' && path !== '') {
             try {
                 const fileData = await localforage.getItem(path);
@@ -148,14 +165,13 @@ self.addEventListener('fetch', e => {
                             'Content-Type': mimeTypes[ext] || 'application/octet-stream',
                             'Cross-Origin-Embedder-Policy': 'require-corp',
                             'Cross-Origin-Opener-Policy': 'same-origin',
-                            'Cache-Control': 'no-cache, no-store, must-revalidate'
+                            'Cache-Control': 'public, max-age=3600'
                         }
                     });
                 }
             } catch(err) { console.error('IDB Read Error:', err); }
         }
 
-        // 3. Fallback to Network (for index.html and external CDN requests)
         try {
             const res = await fetch(e.request);
             if (res.status === 0) return res; 
@@ -184,6 +200,16 @@ self.addEventListener('fetch', e => {
             document.body.removeChild(a);
         }
 
+        function showError(msg) {
+            const errBox = document.getElementById('errorBox');
+            const errText = document.getElementById('errorText');
+            errText.innerText = msg;
+            errBox.classList.remove('hidden');
+            
+            document.getElementById('progressContainer').classList.add('hidden');
+            document.getElementById('zipInput').parentElement.classList.remove('hidden');
+        }
+
         // --- Application Logic ---
         document.addEventListener('DOMContentLoaded', async () => {
             const statusEl = document.getElementById('statusMsg');
@@ -191,25 +217,23 @@ self.addEventListener('fetch', e => {
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('sw.js').then(async (reg) => {
                     
-                    // Force Update Check: Check if sw.js has the new v2-polish tag
                     let needsUpdate = false;
                     try {
                         const swFetch = await fetch('sw.js?t=' + Date.now());
                         if (swFetch.ok) {
                             const swText = await swFetch.text();
-                            if (!swText.includes('v2-polish')) needsUpdate = true;
+                            if (!swText.includes('v4-enhanced')) needsUpdate = true;
                         } else {
-                            needsUpdate = true; // file doesn't exist yet
+                            needsUpdate = true; 
                         }
                     } catch(e) { needsUpdate = true; }
 
                     if (needsUpdate) {
                         document.getElementById('setupBox').classList.remove('hidden');
                         statusEl.innerHTML = "<span class='text-yellow-400 font-bold'>Update required to continue.</span>";
-                        return; // Stop here until updated
+                        return; 
                     }
 
-                    // Headers Check
                     if (!window.crossOriginIsolated) {
                         let reloads = parseInt(sessionStorage.getItem('sw_reload_count') || '0');
                         if (reloads < 3) {
@@ -222,7 +246,6 @@ self.addEventListener('fetch', e => {
                         return;
                     }
 
-                    // Ready!
                     sessionStorage.removeItem('sw_reload_count');
                     statusEl.innerText = "Environment fully secured & ready!";
                     
@@ -247,27 +270,43 @@ self.addEventListener('fetch', e => {
                 const file = e.target.files[0];
                 if (!file) return;
 
+                document.getElementById('errorBox').classList.add('hidden');
                 const pContainer = document.getElementById('progressContainer');
                 const pBar = document.getElementById('progressBar');
                 const pText = document.getElementById('progressText');
                 
                 pContainer.classList.remove('hidden');
-                document.getElementById('zipInput').parentElement.classList.add('hidden'); // Hide upload button during extract
+                document.getElementById('zipInput').parentElement.classList.add('hidden'); 
                 
                 try {
                     const zip = await JSZip.loadAsync(file);
                     const files = Object.keys(zip.files).filter(f => !zip.files[f].dir);
                     
+                    let hasHtml = false;
                     let i = 0;
+                    
                     for (const filename of files) {
                         i++;
                         const cleanName = filename.split('/').pop(); 
+                        if (cleanName.endsWith('.html')) hasHtml = true;
                         
                         pText.innerText = `Extracting: ${cleanName} (${i}/${files.length})`;
                         pBar.style.width = `${(i / files.length) * 100}%`;
                         
                         const data = await zip.files[filename].async('arraybuffer');
-                        await localforage.setItem(cleanName, data);
+                        
+                        try {
+                            await localforage.setItem(cleanName, data);
+                        } catch (storageErr) {
+                            if (storageErr.name === 'QuotaExceededError' || (storageErr.message && storageErr.message.includes('Quota'))) {
+                                throw new Error("Browser ran out of storage space! Free up disk space or disable Incognito mode.");
+                            }
+                            throw storageErr; 
+                        }
+                    }
+                    
+                    if (!hasHtml) {
+                        throw new Error("Invalid ZIP format. Could not find any HTML game file inside.");
                     }
                     
                     await localforage.setItem('is_installed', true);
@@ -279,8 +318,9 @@ self.addEventListener('fetch', e => {
                     }, 1000);
                     
                 } catch (err) {
-                    alert('Error extracting ZIP: ' + err.message);
-                    window.location.reload();
+                    showError(err.message || "An unknown error occurred while extracting.");
+                } finally {
+                    e.target.value = ''; // Reset input to allow re-uploading
                 }
             });
         });
@@ -288,20 +328,21 @@ self.addEventListener('fetch', e => {
         // --- Game Container Controls ---
         
         function launchGame() {
-            // Hide main menu, show game container
             document.getElementById('launcherUI').classList.add('hidden');
             document.getElementById('gameContainer').classList.remove('hidden');
             
-            // Set the iframe to the virtual URL the Service Worker is looking for!
-            document.getElementById('gameFrame').src = 'virtual-game.html';
+            // Dynamically inject the game frame to start a fresh instance every launch
+            const container = document.getElementById('iframeContainer');
+            container.innerHTML = '<iframe id="gameFrame" class="w-full h-full border-none flex-grow bg-black" allow="fullscreen; autoplay; keyboard-map; cross-origin-isolated" src="virtual-game.html"></iframe>';
         }
 
         function exitGame() {
-            document.getElementById('gameFrame').src = ''; // Stops the game processing
+            // Destroy the game frame to completely stop WASM memory leaks
+            document.getElementById('iframeContainer').innerHTML = ''; 
+            
             document.getElementById('gameContainer').classList.add('hidden');
             document.getElementById('launcherUI').classList.remove('hidden');
             
-            // Exit fullscreen if active
             if (document.fullscreenElement) {
                 document.exitFullscreen();
             }
