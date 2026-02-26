@@ -1,4 +1,5 @@
-// v4-enhanced
+// v6-shortcut
+const SW_VERSION = 'v6-shortcut';
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js');
 
 self.addEventListener('install', e => {
@@ -11,20 +12,32 @@ self.addEventListener('activate', e => {
     e.waitUntil(self.clients.claim());
 });
 
+// Listen for version check messages from the main page to avoid GitHub Pages CDN caching issues
+self.addEventListener('message', event => {
+    if (event.data && event.data.type === 'CHECK_VERSION') {
+        event.ports[0].postMessage({ version: SW_VERSION });
+    }
+});
+
 self.addEventListener('fetch', e => {
     // Only intercept GET requests
     if (e.request.method !== 'GET') return;
 
     const url = new URL(e.request.url);
     
-    // BUG FIX: Ignore browser extensions (chrome-extension://) to prevent crashes
+    // Ignore browser extensions (chrome-extension://) to prevent crashes
     if (!url.protocol.startsWith('http')) return;
 
     e.respondWith((async () => {
         const path = url.pathname.split('/').pop();
 
+        // Explicitly bypass intercepting the sw.js itself to prevent fetch loops
+        if (path === 'sw.js') {
+            return fetch(e.request);
+        }
+
         // 1. VIRTUAL GAME ROUTE
-        // This intercepts the iframe loading and serves the extracted HTML securely
+        // Intercepts the iframe loading and serves the extracted HTML securely
         if (path === 'virtual-game.html') {
             try {
                 const keys = await localforage.keys();
@@ -49,7 +62,7 @@ self.addEventListener('fetch', e => {
 
         // 2. LOCAL DATABASE INTERCEPTOR
         // Intercepts requests for game assets (.wasm, .data, .js) and serves them from IndexedDB
-        if (path && path !== 'sw.js' && path !== 'index.html' && path !== '') {
+        if (path && path !== 'index.html' && path !== '') {
             try {
                 const fileData = await localforage.getItem(path);
                 if (fileData) {
