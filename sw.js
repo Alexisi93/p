@@ -1,5 +1,5 @@
-// v6-shortcut
-const SW_VERSION = 'v6-shortcut';
+// v7-blazor-fix
+const SW_VERSION = 'v7-blazor-fix';
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js');
 
 self.addEventListener('install', e => {
@@ -41,7 +41,8 @@ self.addEventListener('fetch', e => {
         if (path === 'virtual-game.html') {
             try {
                 const keys = await localforage.keys();
-                const htmlKey = keys.find(k => k === 'terraria.html') || keys.find(k => k.endsWith('.html'));
+                // Find the main HTML file
+                const htmlKey = keys.find(k => k === 'terraria.html') || keys.find(k => k === 'index.html') || keys.find(k => k.endsWith('.html'));
                 
                 if (htmlKey) {
                     const fileData = await localforage.getItem(htmlKey);
@@ -61,20 +62,34 @@ self.addEventListener('fetch', e => {
         }
 
         // 2. LOCAL DATABASE INTERCEPTOR
-        // Intercepts requests for game assets (.wasm, .data, .js) and serves them from IndexedDB
+        // Intercepts requests for game assets and serves them from IndexedDB
         if (path && path !== 'index.html' && path !== '') {
             try {
                 const fileData = await localforage.getItem(path);
                 if (fileData) {
                     const ext = path.split('.').pop().toLowerCase();
+                    
+                    // Comprehensive MIME types specifically for Blazor/Dotnet WebAssembly
                     const mimeTypes = { 
                         'html': 'text/html', 
                         'js': 'application/javascript', 
+                        'mjs': 'application/javascript', 
+                        'json': 'application/json',
                         'wasm': 'application/wasm', 
-                        'data': 'application/octet-stream', 
+                        'tar': 'application/x-tar',
+                        'zip': 'application/zip',
                         'png': 'image/png', 
-                        'css': 'text/css' 
+                        'jpg': 'image/jpeg',
+                        'css': 'text/css',
+                        'txt': 'text/plain',
+                        'dll': 'application/octet-stream',
+                        'dat': 'application/octet-stream',
+                        'blat': 'application/octet-stream',
+                        'br': 'application/brotli',
+                        'gz': 'application/gzip',
+                        'data': 'application/octet-stream' 
                     };
+
                     return new Response(fileData, {
                         headers: {
                             'Content-Type': mimeTypes[ext] || 'application/octet-stream',
@@ -90,7 +105,7 @@ self.addEventListener('fetch', e => {
         }
 
         // 3. NETWORK FALLBACK & HEADER INJECTION
-        // For everything else (like CDNs or the main index.html), fetch normally but force security headers
+        // For everything else, fetch normally but force security headers
         try {
             const res = await fetch(e.request);
             if (res.status === 0) return res; // Handle opaque responses gracefully
