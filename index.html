@@ -10,19 +10,18 @@
     <style>
         body { background-color: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .hover-hud { opacity: 0; transition: opacity 0.3s ease-in-out; }
-        .hover-hud:hover { opacity: 1; }
+        kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 to-slate-800">
 
     <!-- MAIN LAUNCHER UI -->
-    <div id="launcherUI" class="glass-panel rounded-2xl shadow-2xl p-8 max-w-md w-full text-center transition-all duration-300">
+    <div id="launcherUI" class="glass-panel rounded-2xl shadow-2xl p-8 max-w-md w-full text-center transition-all duration-300 relative z-10">
         <h1 class="text-4xl font-extrabold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">Terraria Web</h1>
         <p class="text-sm text-gray-400 mb-8" id="statusMsg">Checking server environment...</p>
 
         <!-- Error Box -->
-        <div id="errorBox" class="hidden bg-red-900/40 border border-red-600 p-4 rounded-lg text-left text-sm text-red-200 mb-6 shadow-inner">
+        <div id="errorBox" class="hidden bg-red-900/40 border border-red-600 p-4 rounded-lg text-left text-sm text-red-200 mb-6 shadow-inner transition-all">
             <p class="font-bold flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 Error Occurred
@@ -38,90 +37,113 @@
                 <ol class="list-decimal ml-4 space-y-2 text-gray-300 font-medium">
                     <li>Click below to download the latest <b>sw.js</b></li>
                     <li>Upload/Replace it in your GitHub repository</li>
-                    <li>Refresh this page!</li>
+                    <li>Wait 60 seconds for GitHub to update, then Refresh!</li>
                 </ol>
             </div>
-            <button onclick="downloadSW()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-blue-900/50 hover:scale-[1.02]">
-                Download sw.js
-            </button>
+            <div class="flex gap-2">
+                <button onclick="downloadSW()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-blue-900/50 hover:scale-[1.02]">
+                    Download sw.js
+                </button>
+                <button onclick="forceContinue()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-sm" title="Click this if you already uploaded it and are stuck in a loop">
+                    Skip
+                </button>
+            </div>
         </div>
 
         <!-- STEP 2: Upload ZIP -->
         <div id="uploadBox" class="hidden space-y-4">
-            <p class="text-gray-300 mb-4">Select your <b>terraria-wasm-build.zip</b>. It will install locally to your browser.</p>
+            <p class="text-gray-300 mb-4 text-sm leading-relaxed">Select your <b>terraria-wasm-build.zip</b>. It will install locally and securely into your browser's storage.</p>
             
             <label class="block w-full bg-slate-700 hover:bg-slate-600 cursor-pointer text-white font-bold py-4 px-4 rounded-xl transition-all border-2 border-dashed border-gray-500 hover:border-green-400 hover:scale-[1.02]">
                 <span class="flex items-center justify-center gap-2">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                    Select ZIP File
+                    Select Game ZIP
                 </span>
                 <input type="file" id="zipInput" accept=".zip" class="hidden">
             </label>
 
             <!-- Progress Bar -->
-            <div id="progressContainer" class="hidden mt-4 bg-slate-800/50 p-3 rounded-lg">
-                <div class="w-full bg-gray-700 rounded-full h-3 mb-2 overflow-hidden">
+            <div id="progressContainer" class="hidden mt-4 bg-slate-800/80 p-4 rounded-xl border border-slate-600">
+                <div class="w-full bg-gray-900 rounded-full h-3 mb-3 overflow-hidden shadow-inner">
                     <div id="progressBar" class="bg-gradient-to-r from-green-500 to-emerald-400 h-3 rounded-full transition-all duration-200" style="width: 0%"></div>
                 </div>
-                <p id="progressText" class="text-xs text-gray-400 font-mono">Extracting...</p>
+                <p id="progressText" class="text-xs text-gray-400 font-mono truncate">Preparing...</p>
             </div>
         </div>
 
         <!-- STEP 3: Play & Settings -->
-        <div id="playBox" class="hidden mt-6 space-y-3">
-            <div class="p-4 bg-green-900/20 border border-green-800 rounded-xl mb-4">
-                <p class="text-green-400 font-bold flex items-center justify-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    Game is ready to play!
+        <div id="playBox" class="hidden mt-4 space-y-4">
+            
+            <!-- Instructions Panel -->
+            <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-600 text-left shadow-lg">
+                <p class="font-bold text-gray-200 mb-2 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    How to open the Menu:
+                </p>
+                <p class="text-sm text-gray-400 leading-relaxed">
+                    While playing, hold down <kbd class="bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-gray-200 shadow-sm font-bold">Ctrl</kbd> + <kbd class="bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-gray-200 shadow-sm font-bold">E</kbd> + <kbd class="bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-gray-200 shadow-sm font-bold">A</kbd> simultaneously to open the Settings Menu (Fullscreen / Exit).
                 </p>
             </div>
             
-            <button onclick="launchGame()" class="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg shadow-green-900/50 hover:scale-[1.02] text-lg">
-                ▶ Launch Game
+            <button onclick="launchGame()" class="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg shadow-green-900/50 hover:scale-[1.02] text-lg flex items-center justify-center gap-2">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+                Launch Game
             </button>
             
-            <button onclick="clearData()" class="w-full bg-slate-800 hover:bg-red-900/80 text-gray-300 hover:text-white font-semibold py-2 px-4 rounded-xl transition-colors border border-slate-700 hover:border-red-700 text-sm">
+            <button onclick="clearData()" class="w-full bg-slate-800 hover:bg-red-900/80 text-gray-400 hover:text-white font-semibold py-3 px-4 rounded-xl transition-colors border border-slate-700 hover:border-red-700 text-sm">
                 Delete Installed Files
             </button>
         </div>
     </div>
 
-    <!-- GAME CONTAINER (Hidden by default) -->
-    <div id="gameContainer" class="hidden fixed inset-0 w-full h-full bg-black z-50 flex flex-col">
-        
-        <!-- Hover HUD (Top Bar) -->
-        <div class="hover-hud absolute top-0 left-0 w-full p-4 flex justify-between items-center bg-gradient-to-b from-black/90 to-transparent z-50 text-white">
-            <button onclick="exitGame()" class="bg-red-600/90 hover:bg-red-500 px-5 py-2 rounded-lg font-bold shadow-lg transition-colors border border-red-400/30 flex items-center gap-2 backdrop-blur-sm">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                Exit Game
-            </button>
-            
-            <div class="text-gray-400 text-sm font-mono tracking-widest pointer-events-none font-bold text-center">
-                TERRARIA WEB <span class="text-green-400/70 ml-2">v1.4.0</span>
-            </div>
-
-            <button onclick="toggleFullscreen()" class="bg-slate-700/90 hover:bg-slate-600 px-5 py-2 rounded-lg font-bold shadow-lg transition-colors border border-slate-500/30 flex items-center gap-2 backdrop-blur-sm">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                Fullscreen
-            </button>
+    <!-- GAME CONTAINER -->
+    <div id="gameContainer" class="hidden fixed inset-0 w-full h-full bg-black z-40 flex flex-col">
+        <!-- The actual game iframe container -->
+        <div id="iframeContainer" class="w-full h-full border-none flex-grow bg-black relative">
         </div>
 
-        <!-- The actual game iframe container (Injected via JS to prevent WASM Memory Leaks) -->
-        <div id="iframeContainer" class="w-full h-full border-none flex-grow bg-black relative">
+        <!-- In-Game Settings Menu Overlay -->
+        <div id="gameMenuOverlay" class="hidden absolute inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center transition-opacity">
+            <div class="bg-slate-800 border border-slate-600 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center transform transition-all">
+                <h2 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600 mb-1">Game Menu</h2>
+                <p class="text-gray-400 text-sm mb-6 font-mono">v1.6.0</p>
+                
+                <button onclick="toggleFullscreen()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-xl mb-3 transition-all shadow-lg hover:scale-[1.02] flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                    Toggle Fullscreen
+                </button>
+                
+                <button onclick="exitGame()" class="w-full bg-red-600/90 hover:bg-red-500 text-white font-bold py-3 px-4 rounded-xl mb-6 transition-all shadow-lg hover:scale-[1.02] flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Exit Game
+                </button>
+                
+                <button onclick="toggleGameMenu()" class="text-gray-400 hover:text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors">
+                    Close Menu (Esc)
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- UI Version Badge -->
-    <div class="fixed bottom-3 right-4 text-xs font-mono text-gray-500 bg-black/30 px-2 py-1 rounded pointer-events-none z-40 border border-white/5 shadow-sm">
-        v1.4.0
+    <div class="fixed bottom-3 right-4 text-xs font-mono text-gray-500 bg-black/30 px-2 py-1 rounded pointer-events-none z-10 border border-white/5 shadow-sm">
+        v1.6.0
     </div>
 
     <script>
-        // --- Service Worker Code Generator (Version 4 - Enhanced) ---
-        const swCode = `// v4-enhanced
+        // --- Service Worker Code Generator (Version 6) ---
+        const swCode = `// v6-shortcut
+const SW_VERSION = 'v6-shortcut';
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js');
+
 self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+
+self.addEventListener('message', event => {
+    if (event.data && event.data.type === 'CHECK_VERSION') {
+        event.ports[0].postMessage({ version: SW_VERSION });
+    }
+});
 
 self.addEventListener('fetch', e => {
     if (e.request.method !== 'GET') return;
@@ -131,6 +153,8 @@ self.addEventListener('fetch', e => {
 
     e.respondWith((async () => {
         const path = url.pathname.split('/').pop();
+
+        if (path === 'sw.js') return fetch(e.request);
 
         if (path === 'virtual-game.html') {
             try {
@@ -148,13 +172,13 @@ self.addEventListener('fetch', e => {
                         }
                     });
                 }
-                return new Response("<h2 style='color:white; font-family:sans-serif; text-align:center; margin-top:50px;'>Game HTML not found. Please exit and re-extract the ZIP.</h2>", { status: 404, headers: {'Content-Type': 'text/html'} });
+                return new Response("<h2 style='color:white; font-family:sans-serif; text-align:center; margin-top:50px;'>Game HTML not found. Please click 'Exit Game' and re-extract the ZIP.</h2>", { status: 404, headers: {'Content-Type': 'text/html'} });
             } catch(err) {
                 return new Response("Error reading storage database.", { status: 500 });
             }
         }
 
-        if (path && path !== 'sw.js' && path !== 'index.html' && path !== '') {
+        if (path && path !== 'index.html' && path !== '') {
             try {
                 const fileData = await localforage.getItem(path);
                 if (fileData) {
@@ -200,6 +224,37 @@ self.addEventListener('fetch', e => {
             document.body.removeChild(a);
         }
 
+        function forceContinue() {
+            document.getElementById('setupBox').classList.add('hidden');
+            checkHeadersAndContinue();
+        }
+
+        async function checkHeadersAndContinue() {
+            const statusEl = document.getElementById('statusMsg');
+            if (!window.crossOriginIsolated) {
+                let reloads = parseInt(sessionStorage.getItem('sw_reload_count') || '0');
+                if (reloads < 3) {
+                    sessionStorage.setItem('sw_reload_count', reloads + 1);
+                    statusEl.innerText = "Applying secure headers... reloading...";
+                    setTimeout(() => window.location.reload(), 800);
+                } else {
+                    statusEl.innerHTML = "<span class='text-red-400 font-bold'>Header Error:</span> Browser failed to apply security headers.";
+                }
+                return;
+            }
+
+            sessionStorage.removeItem('sw_reload_count');
+            statusEl.innerText = "Environment fully secured & ready!";
+            
+            const isInstalled = await localforage.getItem('is_installed');
+            if (isInstalled) {
+                document.getElementById('playBox').classList.remove('hidden');
+                statusEl.innerText = "Files detected in browser storage.";
+            } else {
+                document.getElementById('uploadBox').classList.remove('hidden');
+            }
+        }
+
         function showError(msg) {
             const errBox = document.getElementById('errorBox');
             const errText = document.getElementById('errorText');
@@ -219,12 +274,33 @@ self.addEventListener('fetch', e => {
                     
                     let needsUpdate = false;
                     try {
-                        const swFetch = await fetch('sw.js?t=' + Date.now());
-                        if (swFetch.ok) {
-                            const swText = await swFetch.text();
-                            if (!swText.includes('v4-enhanced')) needsUpdate = true;
-                        } else {
-                            needsUpdate = true; 
+                        const checkSWVersion = () => {
+                            return new Promise(resolve => {
+                                if (!navigator.serviceWorker.controller) {
+                                    resolve(true); 
+                                    return;
+                                }
+                                const channel = new MessageChannel();
+                                channel.port1.onmessage = (e) => {
+                                    if (e.data && e.data.version === 'v6-shortcut') {
+                                        resolve(false);
+                                    } else {
+                                        resolve(true);
+                                    }
+                                };
+                                navigator.serviceWorker.controller.postMessage({ type: 'CHECK_VERSION' }, [channel.port2]);
+                                setTimeout(() => resolve(true), 1500); 
+                            });
+                        };
+
+                        needsUpdate = await checkSWVersion();
+                        
+                        if (needsUpdate) {
+                            const swFetch = await fetch('sw.js?t=' + Date.now(), { cache: 'no-store' });
+                            if (swFetch.ok) {
+                                const swText = await swFetch.text();
+                                if (swText.includes('v6-shortcut')) needsUpdate = false;
+                            }
                         }
                     } catch(e) { needsUpdate = true; }
 
@@ -234,35 +310,14 @@ self.addEventListener('fetch', e => {
                         return; 
                     }
 
-                    if (!window.crossOriginIsolated) {
-                        let reloads = parseInt(sessionStorage.getItem('sw_reload_count') || '0');
-                        if (reloads < 3) {
-                            sessionStorage.setItem('sw_reload_count', reloads + 1);
-                            statusEl.innerText = "Applying secure headers... reloading...";
-                            setTimeout(() => window.location.reload(), 800);
-                        } else {
-                            statusEl.innerHTML = "<span class='text-red-400 font-bold'>Header Error:</span> Browser failed to apply security headers.";
-                        }
-                        return;
-                    }
-
-                    sessionStorage.removeItem('sw_reload_count');
-                    statusEl.innerText = "Environment fully secured & ready!";
-                    
-                    const isInstalled = await localforage.getItem('is_installed');
-                    if (isInstalled) {
-                        document.getElementById('playBox').classList.remove('hidden');
-                        statusEl.innerText = "Files detected in browser storage.";
-                    } else {
-                        document.getElementById('uploadBox').classList.remove('hidden');
-                    }
+                    checkHeadersAndContinue();
 
                 }).catch(err => {
                     document.getElementById('setupBox').classList.remove('hidden');
                     statusEl.innerText = "Missing Server Infrastructure";
                 });
             } else {
-                statusEl.innerText = "Your browser does not support Service Workers. Please use a modern browser.";
+                statusEl.innerText = "Your browser does not support Service Workers.";
             }
 
             // ZIP Extraction Logic
@@ -320,28 +375,92 @@ self.addEventListener('fetch', e => {
                 } catch (err) {
                     showError(err.message || "An unknown error occurred while extracting.");
                 } finally {
-                    e.target.value = ''; // Reset input to allow re-uploading
+                    e.target.value = ''; 
                 }
             });
         });
 
-        // --- Game Container Controls ---
+        // --- Game Container & Shortcut Controls ---
+        let keysTracker = new Set();
+
+        function handleKeyDown(e) {
+            keysTracker.add(e.key.toLowerCase());
+            
+            // Check for Ctrl + E + A combination
+            if (e.ctrlKey && keysTracker.has('e') && keysTracker.has('a')) {
+                e.preventDefault(); 
+                toggleGameMenu();
+                keysTracker.clear(); // Clear so it doesn't trigger repeatedly
+            }
+
+            // Allow closing the menu with Escape
+            if (e.key === 'Escape') {
+                const menu = document.getElementById('gameMenuOverlay');
+                if (!menu.classList.contains('hidden')) {
+                    toggleGameMenu();
+                }
+            }
+        }
+
+        function handleKeyUp(e) {
+            keysTracker.delete(e.key.toLowerCase());
+        }
+
+        // Attach listeners during "Capture Phase" (true) to intercept before the WASM game does
+        function attachShortcutListeners(targetWindow) {
+            targetWindow.addEventListener('keydown', handleKeyDown, true);
+            targetWindow.addEventListener('keyup', handleKeyUp, true);
+        }
         
+        // Attach to main window
+        attachShortcutListeners(window);
+
         function launchGame() {
             document.getElementById('launcherUI').classList.add('hidden');
             document.getElementById('gameContainer').classList.remove('hidden');
+            document.getElementById('gameMenuOverlay').classList.add('hidden');
             
-            // Dynamically inject the game frame to start a fresh instance every launch
             const container = document.getElementById('iframeContainer');
             container.innerHTML = '<iframe id="gameFrame" class="w-full h-full border-none flex-grow bg-black" allow="fullscreen; autoplay; keyboard-map; cross-origin-isolated" src="virtual-game.html"></iframe>';
+
+            // Attach listeners to iframe window once it loads
+            const frame = document.getElementById('gameFrame');
+            frame.onload = () => {
+                try {
+                    attachShortcutListeners(frame.contentWindow);
+                } catch(err) {
+                    console.warn("Could not attach listener directly inside iframe. Main window listener will be used.");
+                }
+                frame.focus();
+            };
+        }
+
+        function toggleGameMenu() {
+            const menu = document.getElementById('gameMenuOverlay');
+            if (menu.classList.contains('hidden')) {
+                // Open Menu
+                menu.classList.remove('hidden');
+                // Exit pointer lock if the WASM game is locking the mouse
+                if (document.pointerLockElement) {
+                    document.exitPointerLock();
+                }
+            } else {
+                // Close Menu
+                menu.classList.add('hidden');
+                // Give focus back to the game iframe
+                const frame = document.getElementById('gameFrame');
+                if (frame) frame.focus();
+            }
         }
 
         function exitGame() {
-            // Destroy the game frame to completely stop WASM memory leaks
+            // Destroy the game frame entirely to stop audio and memory leaks
             document.getElementById('iframeContainer').innerHTML = ''; 
             
+            document.getElementById('gameMenuOverlay').classList.add('hidden');
             document.getElementById('gameContainer').classList.add('hidden');
             document.getElementById('launcherUI').classList.remove('hidden');
+            keysTracker.clear();
             
             if (document.fullscreenElement) {
                 document.exitFullscreen();
