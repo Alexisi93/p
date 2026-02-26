@@ -1,5 +1,5 @@
-// v2.0.0-launcher
-const SW_VERSION = 'v2.0.0-launcher';
+// v3.0.0-pathfix
+const SW_VERSION = 'v3.0.0-pathfix';
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js');
 
 self.addEventListener('install', e => {
@@ -22,19 +22,22 @@ self.addEventListener('fetch', e => {
     if (!url.protocol.startsWith('http')) return;
 
     e.respondWith((async () => {
-        const path = url.pathname.split('/').pop();
+        // Use the FULL path instead of just the filename
+        const requestPath = decodeURIComponent(url.pathname);
 
-        if (path === 'sw.js') {
+        // Bypass for the service worker itself
+        if (requestPath.endsWith('sw.js')) {
             return fetch(e.request);
         }
 
-        // 1. GAME ROUTE
-        if (path === 'virtual-game.html') {
+        const keys = await localforage.keys();
+        // Sort keys by length descending to match deep paths first (e.g. _framework/dotnet.wasm before dotnet.wasm)
+        keys.sort((a, b) => b.length - a.length);
+
+        // 1. VIRTUAL GAME ROUTE
+        if (requestPath.endsWith('virtual-game.html')) {
             try {
-                const keys = await localforage.keys();
-                // Ensure we find the main entry html
-                const htmlKey = keys.find(k => k === 'terraria.html') || keys.find(k => k === 'index.html') || keys.find(k => k.endsWith('.html'));
-                
+                const htmlKey = keys.find(k => k === 'index.html' || k === 'terraria.html' || (!k.includes('/') && k.endsWith('.html')));
                 if (htmlKey) {
                     const fileData = await localforage.getItem(htmlKey);
                     return new Response(fileData, {
@@ -46,18 +49,21 @@ self.addEventListener('fetch', e => {
                         }
                     });
                 }
-                return new Response("<h2 style='color:white; font-family:sans-serif; text-align:center; margin-top:50px;'>Game HTML not found. Please click 'Exit Game' and re-extract the ZIP.</h2>", { status: 404, headers: {'Content-Type': 'text/html'} });
+                return new Response("<h2>Game HTML not found. Please extract the ZIP again.</h2>", { status: 404, headers: {'Content-Type': 'text/html'} });
             } catch(err) {
                 return new Response("Error reading storage database.", { status: 500 });
             }
         }
 
-        // 2. ASSET INTERCEPTOR (Blazor/Dotnet Ready)
-        if (path && path !== 'index.html' && path !== '') {
+        // 2. DEEP PATH ASSET INTERCEPTOR
+        // Checks if the request URL ends with the exact folder path stored in the database
+        const matchedKey = keys.find(k => requestPath.endsWith('/' + k) || requestPath === '/' + k || requestPath === k);
+
+        if (matchedKey) {
             try {
-                const fileData = await localforage.getItem(path);
+                const fileData = await localforage.getItem(matchedKey);
                 if (fileData) {
-                    const ext = path.split('.').pop().toLowerCase();
+                    const ext = matchedKey.split('.').pop().toLowerCase();
                     const mimeTypes = { 
                         'html': 'text/html', 
                         'js': 'application/javascript', 
