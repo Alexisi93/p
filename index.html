@@ -8,91 +8,148 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <style>
-        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        body { background-color: #050505; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        .launcher-bg { background: radial-gradient(circle at 50% 0%, #1a2e25 0%, #050505 70%); }
+        .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .launcher-sidebar { background: rgba(0, 0, 0, 0.4); border-right: 1px solid rgba(255,255,255,0.05); }
         kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        
+        /* Custom Scrollbar for ZIP logs if needed */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 to-slate-800">
+<body class="min-h-screen flex items-center justify-center p-4 launcher-bg">
 
     <!-- MAIN LAUNCHER UI -->
-    <div id="launcherUI" class="glass-panel rounded-2xl shadow-2xl p-8 max-w-md w-full text-center transition-all duration-300 relative z-10">
-        <h1 class="text-4xl font-extrabold mb-1 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">Terraria Web</h1>
-        <p class="text-sm text-gray-400 mb-8" id="statusMsg">Checking server environment...</p>
-
-        <!-- Error Box -->
-        <div id="errorBox" class="hidden bg-red-900/40 border border-red-600 p-4 rounded-lg text-left text-sm text-red-200 mb-6 shadow-inner transition-all">
-            <p class="font-bold flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Error Occurred
-            </p>
-            <p id="errorText" class="mt-1">Something went wrong.</p>
-        </div>
-
-        <!-- STEP 1: Service Worker Setup/Update -->
-        <div id="setupBox" class="hidden space-y-4">
-            <div class="bg-yellow-900/40 border border-yellow-600 p-4 rounded-lg text-left text-sm shadow-inner">
-                <p class="mb-2 font-bold text-yellow-400 text-base">⚠️ Action Required!</p>
-                <p class="mb-2 text-gray-200">We need to install or update the secure <b>sw.js</b> file on your GitHub to run the game properly.</p>
-                <ol class="list-decimal ml-4 space-y-2 text-gray-300 font-medium">
-                    <li>Click below to download the latest <b>sw.js</b></li>
-                    <li>Upload/Replace it in your GitHub repository</li>
-                    <li>Wait 60 seconds for GitHub to update, then Refresh!</li>
-                </ol>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="downloadSW()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-blue-900/50 hover:scale-[1.02]">
-                    Download sw.js
-                </button>
-                <button onclick="forceContinue()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-sm" title="Click this if you already uploaded it and are stuck in a loop">
-                    Skip
-                </button>
-            </div>
-        </div>
-
-        <!-- STEP 2: Upload ZIP -->
-        <div id="uploadBox" class="hidden space-y-4">
-            <p class="text-gray-300 mb-4 text-sm leading-relaxed">Select your <b>terraria-wasm-build.zip</b>. It will install locally and securely into your browser's storage.</p>
-            
-            <label class="block w-full bg-slate-700 hover:bg-slate-600 cursor-pointer text-white font-bold py-4 px-4 rounded-xl transition-all border-2 border-dashed border-gray-500 hover:border-green-400 hover:scale-[1.02]">
-                <span class="flex items-center justify-center gap-2">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                    Select Game ZIP
-                </span>
-                <input type="file" id="zipInput" accept=".zip" class="hidden">
-            </label>
-
-            <!-- Progress Bar -->
-            <div id="progressContainer" class="hidden mt-4 bg-slate-800/80 p-4 rounded-xl border border-slate-600">
-                <div class="w-full bg-gray-900 rounded-full h-3 mb-3 overflow-hidden shadow-inner">
-                    <div id="progressBar" class="bg-gradient-to-r from-green-500 to-emerald-400 h-3 rounded-full transition-all duration-200" style="width: 0%"></div>
+    <div id="launcherUI" class="glass-panel rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row transition-all duration-500 relative z-10 border-t border-t-emerald-500/30">
+        
+        <!-- Sidebar -->
+        <div class="launcher-sidebar w-full md:w-64 p-6 flex flex-col justify-between">
+            <div>
+                <h1 class="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-green-400 to-emerald-700 drop-shadow-sm mb-1">TERRARIA</h1>
+                <p class="text-xs text-emerald-400/80 font-mono tracking-widest font-bold mb-8">WEB ENGINE</p>
+                
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3 text-sm text-gray-300">
+                        <div id="statusDot" class="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse"></div>
+                        <span id="statusMsg" class="font-medium">Initializing...</span>
+                    </div>
                 </div>
-                <p id="progressText" class="text-xs text-gray-400 font-mono truncate">Preparing...</p>
+            </div>
+            
+            <div class="mt-8 pt-6 border-t border-white/5">
+                <p class="text-xs text-gray-500 font-mono">Build v2.0.0-launcher</p>
             </div>
         </div>
 
-        <!-- STEP 3: Play & Settings -->
-        <div id="playBox" class="hidden mt-4 space-y-4">
+        <!-- Main Content Area -->
+        <div class="flex-1 p-8 md:p-10 relative flex flex-col justify-center min-h-[400px]">
             
-            <!-- Instructions Panel -->
-            <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-600 text-left shadow-lg">
-                <p class="font-bold text-gray-200 mb-2 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    How to open the Menu:
+            <!-- Error Box -->
+            <div id="errorBox" class="hidden absolute top-0 left-0 right-0 bg-red-900/90 border-b border-red-600 p-4 text-sm text-red-100 shadow-xl z-20 backdrop-blur-md">
+                <p class="font-bold flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    System Error
                 </p>
-                <p class="text-sm text-gray-400 leading-relaxed">
-                    While playing, hold down <kbd class="bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-gray-200 shadow-sm font-bold">Ctrl</kbd> + <kbd class="bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-gray-200 shadow-sm font-bold">E</kbd> + <kbd class="bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-gray-200 shadow-sm font-bold">A</kbd> simultaneously to open the Settings Menu (Fullscreen / Exit).
+                <p id="errorText" class="mt-1 opacity-90">Something went wrong.</p>
+            </div>
+
+            <!-- STEP 1: Service Worker Setup/Update -->
+            <div id="setupBox" class="hidden space-y-6 animate-fade-in">
+                <div>
+                    <h2 class="text-2xl font-bold text-white mb-2">Engine Update Required</h2>
+                    <p class="text-gray-400 text-sm leading-relaxed">The internal server requires a critical update to handle game assets (Dotnet/Blazor). Please sync the latest Service Worker.</p>
+                </div>
+                
+                <div class="bg-black/30 p-5 rounded-xl border border-white/5 space-y-3">
+                    <ol class="list-decimal ml-4 text-sm text-gray-300 space-y-1.5 font-medium">
+                        <li>Download the <span class="text-emerald-400">sw.js</span> file below.</li>
+                        <li>Upload it to your GitHub repository to replace the old one.</li>
+                        <li>Wait ~60 seconds for GitHub to process it.</li>
+                        <li>Click <b>Refresh & Verify</b>.</li>
+                    </ol>
+                </div>
+
+                <div class="flex gap-3">
+                    <button onclick="downloadSW()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-lg transition-all shadow-lg hover:shadow-emerald-900/50 flex justify-center items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Download sw.js
+                    </button>
+                    <button onclick="window.location.reload()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-6 rounded-lg transition-all shadow-lg text-sm">
+                        Refresh & Verify
+                    </button>
+                </div>
+                <!-- Forced Bypass for advanced users -->
+                <button onclick="forceContinue()" class="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-2">Skip check (I already updated it)</button>
+            </div>
+
+            <!-- STEP 2: Upload ZIP -->
+            <div id="uploadBox" class="hidden space-y-6 animate-fade-in">
+                <div>
+                    <h2 class="text-2xl font-bold text-white mb-2">Install Game Assets</h2>
+                    <p class="text-gray-400 text-sm leading-relaxed">Select your packaged game data (ZIP/TAR). Files are extracted directly into your browser's secure local cache.</p>
+                </div>
+                
+                <label class="block w-full bg-slate-800/50 hover:bg-slate-800 cursor-pointer text-white font-bold py-8 px-4 rounded-xl transition-all border-2 border-dashed border-slate-600 hover:border-emerald-500 group">
+                    <div class="flex flex-col items-center justify-center gap-3">
+                        <div class="p-3 bg-slate-700 rounded-full group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-colors">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                        </div>
+                        <span class="text-lg">Select Asset Archive</span>
+                        <span class="text-xs text-gray-500 font-normal">Supports .zip containing web build files</span>
+                    </div>
+                    <input type="file" id="zipInput" accept=".zip" class="hidden">
+                </label>
+
+                <!-- Progress Bar -->
+                <div id="progressContainer" class="hidden mt-4 space-y-2">
+                    <div class="flex justify-between text-xs font-mono text-gray-400">
+                        <span id="progressText">Extracting files...</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="w-full bg-black/50 rounded-full h-2 overflow-hidden border border-white/5">
+                        <div id="progressBar" class="bg-emerald-500 h-full rounded-full transition-all duration-100 ease-out" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 3: Play & Settings -->
+            <div id="playBox" class="hidden space-y-8 animate-fade-in flex flex-col items-center text-center">
+                
+                <div class="w-24 h-24 bg-emerald-900/30 rounded-full flex items-center justify-center border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.2)] mb-2">
+                    <svg class="w-10 h-10 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                </div>
+
+                <div>
+                    <h2 class="text-2xl font-bold text-white mb-1">Ready to Play</h2>
+                    <p class="text-emerald-400/80 text-sm font-medium">Assets verified in local cache.</p>
+                </div>
+                
+                <button onclick="launchGame()" class="w-full max-w-sm bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:-translate-y-1 text-lg tracking-wide">
+                    LAUNCH ENGINE
+                </button>
+                
+                <div class="w-full max-w-sm bg-black/40 p-4 rounded-lg border border-white/5 text-left flex items-start gap-3">
+                    <svg class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-1">In-Game Menu</p>
+                        <p class="text-sm text-gray-300">Press <kbd class="bg-slate-800 border border-slate-600 px-1.5 py-0.5 rounded shadow-sm text-white">Ctrl</kbd> + <kbd class="bg-slate-800 border border-slate-600 px-1.5 py-0.5 rounded shadow-sm text-white">E</kbd> + <kbd class="bg-slate-800 border border-slate-600 px-1.5 py-0.5 rounded shadow-sm text-white">A</kbd> simultaneously to open settings, toggle fullscreen, or exit.</p>
+                    </div>
+                </div>
+
+                <button onclick="clearData()" class="text-sm text-red-400 hover:text-red-300 font-medium underline underline-offset-4 decoration-red-900 hover:decoration-red-400 transition-colors">
+                    Uninstall Game Files
+                </button>
+            </div>
+
+            <!-- Disclaimer Footer -->
+            <div class="absolute bottom-4 left-0 right-0 text-center px-8 opacity-60">
+                <p class="text-[10px] text-gray-500 font-medium">
+                    DISCLAIMER: This tool is an engine wrapper. You must legally own Terraria to play. Piracy is not supported. All game assets belong to Re-Logic.
                 </p>
             </div>
-            
-            <button onclick="launchGame()" class="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg shadow-green-900/50 hover:scale-[1.02] text-lg flex items-center justify-center gap-2">
-                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
-                Launch Game
-            </button>
-            
-            <button onclick="clearData()" class="w-full bg-slate-800 hover:bg-red-900/80 text-gray-400 hover:text-white font-semibold py-3 px-4 rounded-xl transition-colors border border-slate-700 hover:border-red-700 text-sm">
-                Delete Installed Files
-            </button>
         </div>
     </div>
 
@@ -103,37 +160,43 @@
         </div>
 
         <!-- In-Game Settings Menu Overlay -->
-        <div id="gameMenuOverlay" class="hidden absolute inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center transition-opacity">
-            <div class="bg-slate-800 border border-slate-600 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center transform transition-all">
-                <h2 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600 mb-1">Game Menu</h2>
-                <p class="text-gray-400 text-sm mb-6 font-mono">v1.6.0</p>
+        <div id="gameMenuOverlay" class="hidden absolute inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center transition-opacity duration-200">
+            <div class="bg-slate-900 border border-emerald-500/20 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+                <h2 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-green-400 to-emerald-700 mb-1">ENGINE PAUSED</h2>
+                <p class="text-gray-500 text-xs mb-8 font-mono">v2.0.0-launcher</p>
                 
-                <button onclick="toggleFullscreen()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-xl mb-3 transition-all shadow-lg hover:scale-[1.02] flex items-center justify-center gap-2">
+                <button onclick="toggleFullscreen()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-3 px-4 rounded-xl mb-3 transition-all flex items-center justify-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
                     Toggle Fullscreen
                 </button>
                 
-                <button onclick="exitGame()" class="w-full bg-red-600/90 hover:bg-red-500 text-white font-bold py-3 px-4 rounded-xl mb-6 transition-all shadow-lg hover:scale-[1.02] flex items-center justify-center gap-2">
+                <button onclick="exitGame()" class="w-full bg-red-900/50 hover:bg-red-800 border border-red-700 text-white font-bold py-3 px-4 rounded-xl mb-6 transition-all flex items-center justify-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                    Exit Game
+                    Save & Exit to Desktop
                 </button>
                 
-                <button onclick="toggleGameMenu()" class="text-gray-400 hover:text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors">
-                    Close Menu (Esc)
+                <button onclick="toggleGameMenu()" class="text-gray-400 hover:text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-white/5 transition-colors">
+                    Resume Game (Esc)
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- UI Version Badge -->
-    <div class="fixed bottom-3 right-4 text-xs font-mono text-gray-500 bg-black/30 px-2 py-1 rounded pointer-events-none z-10 border border-white/5 shadow-sm">
-        v1.6.0
-    </div>
-
     <script>
-        // --- Service Worker Code Generator (Version 6) ---
-        const swCode = `// v6-shortcut
-const SW_VERSION = 'v6-shortcut';
+        // MUST match the SW.js EXACTLY
+        const EXPECTED_VERSION = 'v2.0.0-launcher';
+
+        // Update the dot UI helper
+        function setStatus(msg, type = 'info') {
+            document.getElementById('statusMsg').innerText = msg;
+            const dot = document.getElementById('statusDot');
+            dot.className = 'w-2.5 h-2.5 rounded-full animate-pulse ' + 
+                (type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-emerald-500' : 'bg-yellow-500');
+        }
+
+        // --- Forced Download String Generation ---
+        const swCode = `// v2.0.0-launcher
+const SW_VERSION = 'v2.0.0-launcher';
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js');
 
 self.addEventListener('install', e => self.skipWaiting());
@@ -147,20 +210,17 @@ self.addEventListener('message', event => {
 
 self.addEventListener('fetch', e => {
     if (e.request.method !== 'GET') return;
-
     const url = new URL(e.request.url);
     if (!url.protocol.startsWith('http')) return;
 
     e.respondWith((async () => {
         const path = url.pathname.split('/').pop();
-
         if (path === 'sw.js') return fetch(e.request);
 
         if (path === 'virtual-game.html') {
             try {
                 const keys = await localforage.keys();
-                const htmlKey = keys.find(k => k === 'terraria.html') || keys.find(k => k.endsWith('.html'));
-                
+                const htmlKey = keys.find(k => k === 'terraria.html') || keys.find(k => k === 'index.html') || keys.find(k => k.endsWith('.html'));
                 if (htmlKey) {
                     const fileData = await localforage.getItem(htmlKey);
                     return new Response(fileData, {
@@ -183,7 +243,7 @@ self.addEventListener('fetch', e => {
                 const fileData = await localforage.getItem(path);
                 if (fileData) {
                     const ext = path.split('.').pop().toLowerCase();
-                    const mimeTypes = { 'html':'text/html', 'js':'application/javascript', 'wasm':'application/wasm', 'data':'application/octet-stream', 'png':'image/png', 'css':'text/css' };
+                    const mimeTypes = { 'html':'text/html', 'js':'application/javascript', 'mjs':'application/javascript', 'json':'application/json', 'wasm':'application/wasm', 'tar':'application/x-tar', 'zip':'application/zip', 'png':'image/png', 'jpg':'image/jpeg', 'css':'text/css', 'txt':'text/plain', 'dll':'application/octet-stream', 'dat':'application/octet-stream', 'blat':'application/octet-stream', 'br':'application/brotli', 'gz':'application/gzip', 'data':'application/octet-stream' };
                     return new Response(fileData, {
                         headers: {
                             'Content-Type': mimeTypes[ext] || 'application/octet-stream',
@@ -199,19 +259,11 @@ self.addEventListener('fetch', e => {
         try {
             const res = await fetch(e.request);
             if (res.status === 0) return res; 
-            
             const headers = new Headers(res.headers);
             headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
             headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-            
-            return new Response(res.body, { 
-                status: res.status, 
-                statusText: res.statusText,
-                headers: headers 
-            });
-        } catch(err) { 
-            return fetch(e.request); 
-        }
+            return new Response(res.body, { status: res.status, statusText: res.statusText, headers: headers });
+        } catch(err) { return fetch(e.request); }
     })());
 });`;
 
@@ -230,26 +282,24 @@ self.addEventListener('fetch', e => {
         }
 
         async function checkHeadersAndContinue() {
-            const statusEl = document.getElementById('statusMsg');
             if (!window.crossOriginIsolated) {
                 let reloads = parseInt(sessionStorage.getItem('sw_reload_count') || '0');
                 if (reloads < 3) {
                     sessionStorage.setItem('sw_reload_count', reloads + 1);
-                    statusEl.innerText = "Applying secure headers... reloading...";
+                    setStatus("Applying secure engine headers...", "info");
                     setTimeout(() => window.location.reload(), 800);
                 } else {
-                    statusEl.innerHTML = "<span class='text-red-400 font-bold'>Header Error:</span> Browser failed to apply security headers.";
+                    setStatus("Security bypass failed. Check browser settings.", "error");
                 }
                 return;
             }
 
             sessionStorage.removeItem('sw_reload_count');
-            statusEl.innerText = "Environment fully secured & ready!";
+            setStatus("Engine Ready", "success");
             
             const isInstalled = await localforage.getItem('is_installed');
             if (isInstalled) {
                 document.getElementById('playBox').classList.remove('hidden');
-                statusEl.innerText = "Files detected in browser storage.";
             } else {
                 document.getElementById('uploadBox').classList.remove('hidden');
             }
@@ -260,6 +310,7 @@ self.addEventListener('fetch', e => {
             const errText = document.getElementById('errorText');
             errText.innerText = msg;
             errBox.classList.remove('hidden');
+            setStatus("System Error", "error");
             
             document.getElementById('progressContainer').classList.add('hidden');
             document.getElementById('zipInput').parentElement.classList.remove('hidden');
@@ -267,46 +318,55 @@ self.addEventListener('fetch', e => {
 
         // --- Application Logic ---
         document.addEventListener('DOMContentLoaded', async () => {
-            const statusEl = document.getElementById('statusMsg');
-            
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('sw.js').then(async (reg) => {
                     
+                    // Wait for service worker to be active before checking version
+                    if (reg.installing) {
+                        await new Promise(resolve => {
+                            reg.installing.addEventListener('statechange', e => {
+                                if (e.target.state === 'activated') resolve();
+                            });
+                        });
+                    }
+
                     let needsUpdate = false;
                     try {
                         const checkSWVersion = () => {
                             return new Promise(resolve => {
                                 if (!navigator.serviceWorker.controller) {
-                                    resolve(true); 
+                                    resolve(true); // Need reload/update
                                     return;
                                 }
                                 const channel = new MessageChannel();
                                 channel.port1.onmessage = (e) => {
-                                    if (e.data && e.data.version === 'v6-shortcut') {
+                                    if (e.data && e.data.version === EXPECTED_VERSION) {
                                         resolve(false);
                                     } else {
+                                        console.log(`Version mismatch: expected ${EXPECTED_VERSION}, got ${e.data.version}`);
                                         resolve(true);
                                     }
                                 };
                                 navigator.serviceWorker.controller.postMessage({ type: 'CHECK_VERSION' }, [channel.port2]);
-                                setTimeout(() => resolve(true), 1500); 
+                                setTimeout(() => resolve(true), 1500); // timeout
                             });
                         };
 
                         needsUpdate = await checkSWVersion();
                         
                         if (needsUpdate) {
+                            // Double check via fetch just in case messaging failed
                             const swFetch = await fetch('sw.js?t=' + Date.now(), { cache: 'no-store' });
                             if (swFetch.ok) {
                                 const swText = await swFetch.text();
-                                if (swText.includes('v6-shortcut')) needsUpdate = false;
+                                if (swText.includes(EXPECTED_VERSION)) needsUpdate = false;
                             }
                         }
                     } catch(e) { needsUpdate = true; }
 
                     if (needsUpdate) {
                         document.getElementById('setupBox').classList.remove('hidden');
-                        statusEl.innerHTML = "<span class='text-yellow-400 font-bold'>Update required to continue.</span>";
+                        setStatus("Update Required", "error");
                         return; 
                     }
 
@@ -314,10 +374,10 @@ self.addEventListener('fetch', e => {
 
                 }).catch(err => {
                     document.getElementById('setupBox').classList.remove('hidden');
-                    statusEl.innerText = "Missing Server Infrastructure";
+                    setStatus("Service Worker Blocked", "error");
                 });
             } else {
-                statusEl.innerText = "Your browser does not support Service Workers.";
+                setStatus("Incompatible Browser", "error");
             }
 
             // ZIP Extraction Logic
@@ -329,13 +389,16 @@ self.addEventListener('fetch', e => {
                 const pContainer = document.getElementById('progressContainer');
                 const pBar = document.getElementById('progressBar');
                 const pText = document.getElementById('progressText');
+                const pPercent = document.getElementById('progressPercent');
                 
                 pContainer.classList.remove('hidden');
                 document.getElementById('zipInput').parentElement.classList.add('hidden'); 
+                setStatus("Extracting...", "info");
                 
                 try {
                     const zip = await JSZip.loadAsync(file);
-                    const files = Object.keys(zip.files).filter(f => !zip.files[f].dir);
+                    // Filter out directories and hidden mac files
+                    const files = Object.keys(zip.files).filter(f => !zip.files[f].dir && !f.includes('__MACOSX') && !f.includes('.DS_Store'));
                     
                     let hasHtml = false;
                     let i = 0;
@@ -345,8 +408,10 @@ self.addEventListener('fetch', e => {
                         const cleanName = filename.split('/').pop(); 
                         if (cleanName.endsWith('.html')) hasHtml = true;
                         
-                        pText.innerText = `Extracting: ${cleanName} (${i}/${files.length})`;
-                        pBar.style.width = `${(i / files.length) * 100}%`;
+                        const percent = Math.floor((i / files.length) * 100);
+                        pText.innerText = cleanName;
+                        pPercent.innerText = percent + '%';
+                        pBar.style.width = percent + '%';
                         
                         const data = await zip.files[filename].async('arraybuffer');
                         
@@ -354,18 +419,19 @@ self.addEventListener('fetch', e => {
                             await localforage.setItem(cleanName, data);
                         } catch (storageErr) {
                             if (storageErr.name === 'QuotaExceededError' || (storageErr.message && storageErr.message.includes('Quota'))) {
-                                throw new Error("Browser ran out of storage space! Free up disk space or disable Incognito mode.");
+                                throw new Error("Disk Full. Free up space on your device or leave Incognito Mode.");
                             }
                             throw storageErr; 
                         }
                     }
                     
                     if (!hasHtml) {
-                        throw new Error("Invalid ZIP format. Could not find any HTML game file inside.");
+                        throw new Error("Invalid Archive: No HTML engine file found inside.");
                     }
                     
                     await localforage.setItem('is_installed', true);
-                    pText.innerText = 'Installation complete!';
+                    setStatus("Extraction Complete", "success");
+                    pText.innerText = 'Finalizing...';
                     
                     setTimeout(() => {
                         document.getElementById('uploadBox').classList.add('hidden');
@@ -373,7 +439,7 @@ self.addEventListener('fetch', e => {
                     }, 1000);
                     
                 } catch (err) {
-                    showError(err.message || "An unknown error occurred while extracting.");
+                    showError(err.message || "Failed to process the archive.");
                 } finally {
                     e.target.value = ''; 
                 }
@@ -386,14 +452,12 @@ self.addEventListener('fetch', e => {
         function handleKeyDown(e) {
             keysTracker.add(e.key.toLowerCase());
             
-            // Check for Ctrl + E + A combination
             if (e.ctrlKey && keysTracker.has('e') && keysTracker.has('a')) {
                 e.preventDefault(); 
                 toggleGameMenu();
-                keysTracker.clear(); // Clear so it doesn't trigger repeatedly
+                keysTracker.clear(); 
             }
 
-            // Allow closing the menu with Escape
             if (e.key === 'Escape') {
                 const menu = document.getElementById('gameMenuOverlay');
                 if (!menu.classList.contains('hidden')) {
@@ -406,31 +470,27 @@ self.addEventListener('fetch', e => {
             keysTracker.delete(e.key.toLowerCase());
         }
 
-        // Attach listeners during "Capture Phase" (true) to intercept before the WASM game does
         function attachShortcutListeners(targetWindow) {
             targetWindow.addEventListener('keydown', handleKeyDown, true);
             targetWindow.addEventListener('keyup', handleKeyUp, true);
         }
         
-        // Attach to main window
         attachShortcutListeners(window);
 
         function launchGame() {
             document.getElementById('launcherUI').classList.add('hidden');
+            document.body.classList.remove('launcher-bg');
             document.getElementById('gameContainer').classList.remove('hidden');
             document.getElementById('gameMenuOverlay').classList.add('hidden');
             
             const container = document.getElementById('iframeContainer');
             container.innerHTML = '<iframe id="gameFrame" class="w-full h-full border-none flex-grow bg-black" allow="fullscreen; autoplay; keyboard-map; cross-origin-isolated" src="virtual-game.html"></iframe>';
 
-            // Attach listeners to iframe window once it loads
             const frame = document.getElementById('gameFrame');
             frame.onload = () => {
                 try {
                     attachShortcutListeners(frame.contentWindow);
-                } catch(err) {
-                    console.warn("Could not attach listener directly inside iframe. Main window listener will be used.");
-                }
+                } catch(err) {}
                 frame.focus();
             };
         }
@@ -438,54 +498,40 @@ self.addEventListener('fetch', e => {
         function toggleGameMenu() {
             const menu = document.getElementById('gameMenuOverlay');
             if (menu.classList.contains('hidden')) {
-                // Open Menu
                 menu.classList.remove('hidden');
-                // Exit pointer lock if the WASM game is locking the mouse
-                if (document.pointerLockElement) {
-                    document.exitPointerLock();
-                }
+                if (document.pointerLockElement) document.exitPointerLock();
             } else {
-                // Close Menu
                 menu.classList.add('hidden');
-                // Give focus back to the game iframe
                 const frame = document.getElementById('gameFrame');
                 if (frame) frame.focus();
             }
         }
 
         function exitGame() {
-            // Destroy the game frame entirely to stop audio and memory leaks
             document.getElementById('iframeContainer').innerHTML = ''; 
-            
             document.getElementById('gameMenuOverlay').classList.add('hidden');
             document.getElementById('gameContainer').classList.add('hidden');
+            
+            document.body.classList.add('launcher-bg');
             document.getElementById('launcherUI').classList.remove('hidden');
             keysTracker.clear();
             
-            if (document.fullscreenElement) {
-                document.exitFullscreen();
-            }
+            if (document.fullscreenElement) document.exitFullscreen();
         }
 
         function toggleFullscreen() {
             const container = document.getElementById('gameContainer');
             if (!document.fullscreenElement) {
-                if (container.requestFullscreen) {
-                    container.requestFullscreen();
-                } else if (container.webkitRequestFullscreen) {
-                    container.webkitRequestFullscreen();
-                }
+                if (container.requestFullscreen) container.requestFullscreen();
+                else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
             } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                }
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             }
         }
 
         async function clearData() {
-            if(confirm("Are you sure you want to delete the installed game files? This clears up browser space and allows you to install a fresh ZIP.")) {
+            if(confirm("Uninstall game assets from the browser? You will need to re-upload the ZIP to play again.")) {
                 await localforage.clear();
                 window.location.reload();
             }
